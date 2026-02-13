@@ -1395,7 +1395,8 @@ get_model() {
     esac
 
     # Detect if running inside a container (Proxmox LXC, Docker, etc.)
-    if [[ -z "$model" || "$model" == *"  "* ]]; then
+    # Only check if model is empty or contains only whitespace (no real hardware detected).
+    if [[ -z "${model// }" ]]; then
         if [[ -f /run/.containerenv ]]; then
             model="Podman Container"
         elif [[ -f /.dockerenv ]]; then
@@ -1666,7 +1667,7 @@ get_packages() {
 
             # Snap hangs if the command is run without the daemon running.
             # Only run snap if the daemon is also running.
-            has snap && [[ -d /run/snapd.socket || -S /run/snapd.socket ]] && \
+            has snap && [[ -S /run/snapd.socket ]] && \
             ps -e | grep -qFm 1 snapd >/dev/null && \
             pkgs_h=1 tot snap list && ((packages-=1))
 
