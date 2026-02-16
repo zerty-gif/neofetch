@@ -79,17 +79,16 @@ print_info() {
     info "GPU" gpu
     info "Memory" memory
 
-    # info "GPU Driver" gpu_driver  # Linux/macOS only
-    # info "Disk" disk
-    # info "Battery" battery
+    info "GPU Driver" gpu_driver  # Linux/macOS only
+    info "Disk" disk
+    info "Battery" battery
     # info "Font" font
     # info "Song" song
     # [[ "$player" ]] && prin "Music Player" "$player"
-    # info "Local IP" local_ip
-    # info "Public IP" public_ip
-    # info "Users" users
-    # info "Locale" locale  # This only works on glibc systems.
-
+    info "Local IP" local_ip
+    info "Public IP" public_ip
+    info "Users" users
+    info "Locale" locale  # This only works on glibc systems.
     info cols
 }
 
@@ -1341,6 +1340,23 @@ get_model() {
                 iPhone13,2):    "iPhone 12" ;;
                 iPhone13,3):    "iPhone 12 Pro" ;;
                 iPhone13,4):    "iPhone 12 Pro Max" ;;
+                iPhone14,4):    "iPhone 13 Mini" ;;
+                iPhone14,5):    "iPhone 13" ;;
+                iPhone14,2):    "iPhone 13 Pro" ;;
+                iPhone14,3):    "iPhone 13 Pro Max" ;;
+                iPhone14,6):    "iPhone SE (3rd Gen)" ;;
+                iPhone14,7):    "iPhone 14" ;;
+                iPhone14,8):    "iPhone 14 Plus" ;;
+                iPhone15,2):    "iPhone 14 Pro" ;;
+                iPhone15,3):    "iPhone 14 Pro Max" ;;
+                iPhone15,4):    "iPhone 15" ;;
+                iPhone15,5):    "iPhone 15 Plus" ;;
+                iPhone16,1):    "iPhone 15 Pro" ;;
+                iPhone16,2):    "iPhone 15 Pro Max" ;;
+                iPhone17,3):    "iPhone 16" ;;
+                iPhone17,4):    "iPhone 16 Plus" ;;
+                iPhone17,1):    "iPhone 16 Pro" ;;
+                iPhone17,2):    "iPhone 16 Pro Max" ;;
                 iPhone14,4):    "iPhone 13 Mini" ;;
                 iPhone14,5):    "iPhone 13" ;;
                 iPhone14,2):    "iPhone 13 Pro" ;;
@@ -3973,6 +3989,14 @@ get_local_ip() {
                 if type -p ip >/dev/null; then
                     local_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk -F'src' '{print $2; exit}')"
                     local_ip="${local_ip/uid*}"
+
+                    # Fallback: if route get failed (offline), try default interface
+                    if [[ -z "$local_ip" ]]; then
+                        local_int="$(ip route show default | awk '{for(i=1;i<=NF;i++) if($i=="dev") {print $(i+1); exit}}')"
+                        [[ -n "$local_int" ]] && \
+                            local_ip="$(ip -4 addr show "$local_int" 2>/dev/null | awk '/inet / {print $2; exit}')"
+                        local_ip="${local_ip/\/*}"
+                    fi
                 fi
                 [[ "$local_ip" ]] ||
                     { type -p ifconfig >/dev/null &&
@@ -4069,7 +4093,7 @@ get_gpu_driver() {
         "Linux")
             if type -p lspci >/dev/null; then
                 gpu_driver="$(lspci -nnk | awk -F ': ' \
-                              '/Display|3D|VGA/{nr[NR+2]}; NR in nr {printf $2 ", "; exit}')"
+                              '/Display|3D|VGA/{nr[NR+2]}; NR in nr {printf $2 ", "}')"
                 gpu_driver="${gpu_driver%, }"
             fi
 
