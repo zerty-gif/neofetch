@@ -229,3 +229,27 @@ This preserves backward compatibility while improving correctness on DNF5-based 
 
 - Existing output formats and fallback priorities are preserved.
 - Changes are additive safety checks; no behavioral regressions in standard environments.
+
+---
+
+## Sixth-pass update: GPU probe guard hardening
+
+### What changed
+
+**File:** `neofetch`
+
+- Added optional-command guards in `get_gpu` fallback paths:
+  - Guarded `pciconf` usage for FreeBSD/DragonFly branch.
+  - Guarded `glxinfo` usage for generic fallback branch.
+- Added optional-command guard in `get_gpu_driver` (Linux):
+  - Guarded `lspci` usage before parsing kernel driver info.
+
+### Why
+
+- On minimal installs, these probe commands may be absent and previously caused noisy command-not-found behavior.
+- Guarding keeps probing quiet and allows natural fallback behavior.
+
+### Compatibility behavior
+
+- No output format changes.
+- Existing successful probe paths remain unchanged when tools are installed.

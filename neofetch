@@ -2695,14 +2695,18 @@ get_gpu() {
         *)
             case $kernel_name in
                 "FreeBSD"* | "DragonFly"*)
-                    gpu="$(pciconf -lv | grep -B 4 -F "VGA" | grep -F "device")"
-                    gpu="${gpu/*device*= }"
-                    gpu="$(trim_quotes "$gpu")"
+                    if type -p pciconf >/dev/null; then
+                        gpu="$(pciconf -lv | grep -B 4 -F "VGA" | grep -F "device")"
+                        gpu="${gpu/*device*= }"
+                        gpu="$(trim_quotes "$gpu")"
+                    fi
                 ;;
 
                 *)
-                    gpu="$(glxinfo -B | grep -F 'OpenGL renderer string')"
-                    gpu="${gpu/OpenGL renderer string: }"
+                    if type -p glxinfo >/dev/null; then
+                        gpu="$(glxinfo -B | grep -F 'OpenGL renderer string')"
+                        gpu="${gpu/OpenGL renderer string: }"
+                    fi
                 ;;
             esac
         ;;
@@ -4038,9 +4042,11 @@ get_locale() {
 get_gpu_driver() {
     case $os in
         "Linux")
-            gpu_driver="$(lspci -nnk | awk -F ': ' \
-                          '/Display|3D|VGA/{nr[NR+2]}; NR in nr {printf $2 ", "; exit}')"
-            gpu_driver="${gpu_driver%, }"
+            if type -p lspci >/dev/null; then
+                gpu_driver="$(lspci -nnk | awk -F ': ' \
+                              '/Display|3D|VGA/{nr[NR+2]}; NR in nr {printf $2 ", "; exit}')"
+                gpu_driver="${gpu_driver%, }"
+            fi
 
             if [[ "$gpu_driver" == *"nvidia"* ]]; then
                 gpu_driver="$(< /proc/driver/nvidia/version)"
