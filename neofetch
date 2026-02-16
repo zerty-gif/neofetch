@@ -995,7 +995,12 @@ get_distro() {
             elif [[ -f /etc/siduction-version ]]; then
                 case $distro_shorthand in
                     on|tiny) distro=Siduction ;;
-                    *) distro="Siduction ($(lsb_release -sic))"
+                    *)
+                        if type -p lsb_release >/dev/null; then
+                            distro="Siduction ($(lsb_release -sic))"
+                        else
+                            distro="Siduction $(< /etc/siduction-version)"
+                        fi
                 esac
 
             elif [[ -f /etc/mcst_version ]]; then
@@ -1037,6 +1042,7 @@ get_distro() {
                 # /etc/os-release takes precedence over /usr/lib/os-release.
                 for file in /etc/os-release /usr/lib/os-release \
                             /etc/openwrt_release /etc/lsb-release; do
+                    [[ -f $file ]] || continue
                     source "$file" && break
                 done
 
@@ -3965,7 +3971,9 @@ get_local_ip() {
         ;;
 
         "MINIX")
-            local_ip="$(ifconfig | awk '{printf $3; exit}')"
+            if type -p ifconfig >/dev/null; then
+                local_ip="$(ifconfig | awk '{printf $3; exit}')"
+            fi
         ;;
 
         "Mac OS X" | "macOS" | "iPhone OS")
@@ -3990,7 +3998,9 @@ get_local_ip() {
         ;;
 
         "Haiku")
-            local_ip="$(ifconfig | awk -F ': ' '/Bcast/ {print $2}')"
+            if type -p ifconfig >/dev/null; then
+                local_ip="$(ifconfig | awk -F ': ' '/Bcast/ {print $2}')"
+            fi
             local_ip="${local_ip/, Bcast}"
         ;;
     esac

@@ -201,3 +201,31 @@ This preserves backward compatibility while improving correctness on DNF5-based 
 - `refresh_rate=on`: outputs `WxH @ <Hz>`.
 - `refresh_rate=off`: outputs `WxH`.
 - If none of these tools are present, script keeps existing fallback behavior unchanged.
+
+---
+
+## Fifth-pass update: command guard hardening
+
+### What changed
+
+**File:** `neofetch`
+
+- Added command guards for legacy `ifconfig` usage in:
+  - MINIX local IP path
+  - Haiku local IP path
+- Hardened Siduction distro detection:
+  - now checks `lsb_release` availability before using it
+  - falls back to `/etc/siduction-version` content when absent
+- Hardened `os-release` sourcing loop:
+  - now checks `[[ -f $file ]]` before `source "$file"`
+
+### Why
+
+- Prevents command-not-found noise on lean/minimal systems.
+- Avoids stderr noise from attempting to source non-existent files in the release-file probe loop.
+- Keeps distro detection functional when optional tools are missing.
+
+### Compatibility behavior
+
+- Existing output formats and fallback priorities are preserved.
+- Changes are additive safety checks; no behavioral regressions in standard environments.
