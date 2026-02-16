@@ -1596,8 +1596,12 @@ get_packages() {
             has pisi       && tot pisi li
             has pacstall   && tot pacstall -L
 
-            # Using the dnf package cache is much faster than rpm.
-            if has dnf && type -p sqlite3 >/dev/null && [[ -f /var/cache/dnf/packages.db ]]; then
+            # Prefer dnf5's installed-package query when available.
+            if has dnf5; then
+                tot dnf5 repoquery --installed --qf '%{name}' --quiet
+
+            # Using the dnf package cache is much faster than rpm on dnf4 systems.
+            elif has dnf && type -p sqlite3 >/dev/null && [[ -f /var/cache/dnf/packages.db ]]; then
                 pac "$(sqlite3 /var/cache/dnf/packages.db "SELECT count(pkg) FROM installed")"
             else
                 has rpm && tot rpm -qa

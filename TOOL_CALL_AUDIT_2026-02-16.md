@@ -112,3 +112,31 @@ If needed, we can do a second-pass audit for additional command paths (`xrandr`,
 **Change made:** No code change required in this pass.
 
 **Why no change now:** Current fallback remains correct and stable across RPM-based systems; introducing DNF5-specific fast path would require distro/version-specific handling beyond this focused maintenance patch.
+
+---
+
+## Third-pass update: DNF5 fast path
+
+### What changed
+
+**File:** `neofetch`
+
+- Added a DNF5-specific package counting branch in `get_packages`:
+  - `dnf5 repoquery --installed --qf '%{name}' --quiet`
+- Kept existing DNF4 optimization (`/var/cache/dnf/packages.db`) as second priority.
+- Kept `rpm -qa` fallback as final path.
+
+### Why
+
+- DNF5 deployments may not provide the DNF4 sqlite cache path previously used for fast counts.
+- Direct `dnf5 repoquery --installed` is a more coherent primary path on modern Fedora/RHEL-family systems that have moved to DNF5.
+
+### Compatibility behavior
+
+Order now is:
+
+1. `dnf5` installed → use DNF5 query path
+2. Else if `dnf` + `sqlite3` + `/var/cache/dnf/packages.db` → use DNF4 sqlite count
+3. Else fallback to `rpm -qa`
+
+This preserves backward compatibility while improving correctness on DNF5-based environments.
