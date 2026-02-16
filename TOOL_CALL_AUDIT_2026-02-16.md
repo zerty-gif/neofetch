@@ -140,3 +140,36 @@ Order now is:
 3. Else fallback to `rpm -qa`
 
 This preserves backward compatibility while improving correctness on DNF5-based environments.
+
+---
+
+## Additional deprecations/enhancements identified
+
+### 1) `wmic` usage on Windows (deprecation risk)
+
+**Status:** Not changed yet (recommendation).
+
+- Multiple Windows code paths still call `wmic`/`wmic.exe` for OS, model, kernel, battery, GPU and resolution queries.
+- WMIC has been deprecated by Microsoft and may be absent/disabled on newer Windows installs.
+
+**Recommended enhancement:** introduce a centralized Windows query helper that prefers PowerShell CIM (`Get-CimInstance`) and falls back to `wmic` when available.
+
+### 2) `gconftool-2` legacy path
+
+**Status:** Hardened in this pass.
+
+- In `Metacity` theme detection, the legacy `gconftool-2` call is now guarded by `type -p gconftool-2`.
+- Prevents noisy failures when legacy GNOME2 tooling is absent.
+
+### 3) `ifconfig` fallback behavior
+
+**Status:** Hardened in this pass.
+
+- Linux local-IP fallback now checks for `ifconfig` presence before invoking it.
+- Avoids command-not-found stderr on modern systems that only ship `iproute2`.
+
+### 4) Optional future quality improvements
+
+- Add a Windows CIM abstraction layer (single helper function) to reduce duplicated `wmic` handling.
+- Expand Wayland resolution support beyond wlroots (`wlr-randr`) to compositor-specific tools where available.
+- Add a CI smoke test mode that stubs external tools to validate fallback ordering without platform-specific runtime dependencies.

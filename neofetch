@@ -2100,7 +2100,9 @@ get_wm_theme() {
                 wm_theme=$(gsettings get org.mate.Marco.general theme)
 
             else
-                wm_theme=$(gconftool-2 -g /apps/metacity/general/theme)
+                if type -p gconftool-2 >/dev/null; then
+                    wm_theme=$(gconftool-2 -g /apps/metacity/general/theme)
+                fi
             fi
         ;;
 
@@ -3920,7 +3922,9 @@ get_local_ip() {
                     local_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk -F'src' '{print $2; exit}')"
                     local_ip="${local_ip/uid*}"
                 fi
-                [[ "$local_ip" ]] || local_ip="$(ifconfig -a | awk '/broadcast/ {print $2; exit}')"
+                [[ "$local_ip" ]] ||
+                    { type -p ifconfig >/dev/null &&
+                      local_ip="$(ifconfig -a 2>/dev/null | awk '/broadcast/ {print $2; exit}')"; }
             else
                 for interface in "${local_ip_interface[@]}"; do
                     if type -p ip >/dev/null; then
@@ -3928,9 +3932,12 @@ get_local_ip() {
                             awk '/inet / {print $2; exit}')"
                         local_ip="${local_ip/\/*}"
                     fi
-                    [[ "$local_ip" ]] ||
-                        local_ip="$(ifconfig "$interface" 2> /dev/null |
-                        awk '/broadcast/ {print $2; exit}')"
+                    [[ "$local_ip" ]] || {
+                        if type -p ifconfig >/dev/null; then
+                            local_ip="$(ifconfig "$interface" 2> /dev/null |
+                            awk '/broadcast/ {print $2; exit}')"
+                        fi
+                    }
                     if [[ -n "$local_ip" ]]; then
                         prin "$interface" "$local_ip"
                     else
