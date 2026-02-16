@@ -1115,8 +1115,7 @@ get_distro() {
             fi
 
             if [[ $(< /proc/version) == *Microsoft* || $kernel_version == *Microsoft* ]]; then
-                windows_version=$(wmic.exe os get Version)
-                windows_version=$(trim "${windows_version/Version}")
+                windows_version="$(win_get_property_values "Win32_OperatingSystem" "Version" | head -n1)"
 
                 case $distro_shorthand in
                     on)   distro+=" [Windows $windows_version]" ;;
@@ -1198,8 +1197,7 @@ get_distro() {
         ;;
 
         Windows)
-            distro=$(wmic os get Caption)
-            distro=${distro/Caption}
+            distro="$(win_get_property_values "Win32_OperatingSystem" "Caption" | head -n1)"
             distro=${distro/Microsoft }
         ;;
 
@@ -1355,9 +1353,9 @@ get_model() {
         ;;
 
         Windows)
-            model=$(wmic computersystem get manufacturer,model)
-            model=${model/Manufacturer}
-            model=${model/Model}
+            model_manufacturer="$(win_get_property_values "Win32_ComputerSystem" "Manufacturer" | head -n1)"
+            model_name="$(win_get_property_values "Win32_ComputerSystem" "Model" | head -n1)"
+            model="$(trim "$model_manufacturer $model_name")"
         ;;
 
         Solaris)
@@ -1431,10 +1429,9 @@ get_kernel() {
         return
     }
 
-    # In Windows 'uname' may return the info of GNUenv thus use wmic for OS kernel.
+    # In Windows 'uname' may return GNU environment info, so query the OS directly.
     [[ $os == Windows ]] && {
-        kernel=$(wmic os get Version)
-        kernel=${kernel/Version}
+        kernel="$(win_get_property_values "Win32_OperatingSystem" "Version" | head -n1)"
         return
     }
 
@@ -2214,7 +2211,7 @@ get_wm_theme() {
         ;;
 
         Blackbox|bbLean*)
-            path=$(wmic process get ExecutablePath | grep -F "blackbox")
+            path="$(win_get_property_values "Win32_Process" "ExecutablePath" | grep -F "blackbox" | head -n1)"
             path=${path//\\/\/}
 
             wm_theme=$(grep '^session\.styleFile:' "${path/\.exe/.rc}")
@@ -2679,19 +2676,9 @@ get_gpu() {
         ;;
 
         "Windows")
-            wmic path Win32_VideoController get caption | while read -r line; do
-                line=$(trim "$line")
-
-                case $line in
-                    *Caption*|'')
-                        continue
-                    ;;
-
-                    *)
-                        prin "${subtitle:+${subtitle}${gpu_name}}" "$line"
-                    ;;
-                esac
-            done
+            while read -r line; do
+                [[ $line ]] && prin "${subtitle:+${subtitle}${gpu_name}}" "$line"
+            done < <(win_get_property_values "Win32_VideoController" "Caption")
         ;;
 
         "Haiku")
@@ -3101,13 +3088,10 @@ get_resolution() {
 
         "Windows")
             IFS=$'\n' read -d "" -ra sw \
-                <<< "$(wmic path Win32_VideoController get CurrentHorizontalResolution)"
+                <<< "$(win_get_property_values "Win32_VideoController" "CurrentHorizontalResolution")"
 
             IFS=$'\n' read -d "" -ra sh \
-                <<< "$(wmic path Win32_VideoController get CurrentVerticalResolution)"
-
-            sw=("${sw[@]//CurrentHorizontalResolution}")
-            sh=("${sh[@]//CurrentVerticalResolution}")
+                <<< "$(win_get_property_values "Win32_VideoController" "CurrentVerticalResolution")"
 
             for ((mn = 0; mn < ${#sw[@]}; mn++)) {
                 [[ ${sw[mn]//[[:space:]]} && ${sh[mn]//[[:space:]]} ]] &&
@@ -3143,6 +3127,40 @@ get_resolution() {
                     "off")
                         resolution="$(wlr-randr 2>/dev/null | \
                                       awk '/ px, .*Hz \(.*current.*\)/ {printf $1 ", "}')"
+                    ;;
+                esac
+
+            elif type -p swaymsg >/dev/null && [[ -n $WAYLAND_DISPLAY ]]; then
+                case $refresh_rate in
+                    "on")
+                        resolution="$(swaymsg -t get_outputs 2>/dev/null | \
+                                      awk '/Current mode:/ {printf $3 " @ " $5 "Hz, "}')"
+                    ;;
+
+                    "off")
+                        resolution="$(swaymsg -t get_outputs 2>/dev/null | \
+                                      awk '/Current mode:/ {printf $3 ", "}')"
+                    ;;
+                esac
+
+            elif type -p hyprctl >/dev/null && [[ -n $WAYLAND_DISPLAY ]]; then
+                case $refresh_rate in
+                    "on")
+                        resolution="$(hyprctl monitors 2>/dev/null | \
+                                      awk 'match($0, /[0-9]+x[0-9]+@[0-9]+(\.[0-9]+)?/) {
+                                          mode=substr($0, RSTART, RLENGTH);
+                                          split(mode, parts, "@");
+                                          printf parts[1] " @ " parts[2] "Hz, "
+                                      }')"
+                    ;;
+
+                    "off")
+                        resolution="$(hyprctl monitors 2>/dev/null | \
+                                      awk 'match($0, /[0-9]+x[0-9]+@[0-9]+(\.[0-9]+)?/) {
+                                          mode=substr($0, RSTART, RLENGTH);
+                                          split(mode, parts, "@");
+                                          printf parts[1] ", "
+                                      }')"
                     ;;
                 esac
 
@@ -3890,12 +3908,11 @@ get_battery() {
         ;;
 
         "Windows")
-            battery="$(wmic Path Win32_Battery get EstimatedChargeRemaining)"
-            battery="${battery/EstimatedChargeRemaining}"
-            battery="$(trim "$battery")%"
-            state="$(wmic /NameSpace:'\\root\WMI' Path BatteryStatus get Charging)"
-            state="${state/Charging}"
-            [[ "$state" == *TRUE* ]] && battery_state="charging"
+            battery_value="$(win_get_property_values "Win32_Battery" "EstimatedChargeRemaining" | head -n1)"
+            [[ $battery_value ]] && battery="${battery_value}%"
+
+            state="$(win_get_property_values "BatteryStatus" "Charging" "\\\\root\\WMI" | head -n1)"
+            [[ "$state" == "TRUE" || "$state" == "True" || "$state" == "1" ]] && battery_state="charging"
         ;;
 
         "Haiku")
@@ -4733,6 +4750,59 @@ trim_quotes() {
     trim_output="${1//\'}"
     trim_output="${trim_output//\"}"
     printf "%s" "$trim_output"
+}
+
+win_ps() {
+    local ps_cmd
+
+    for ps_cmd in powershell.exe powershell pwsh.exe pwsh; do
+        type -p "$ps_cmd" >/dev/null || continue
+
+        "$ps_cmd" -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+            -Command "$1" 2>/dev/null
+        return
+    done
+
+    return 1
+}
+
+win_get_property_values() {
+    local class_name=$1 property=$2 namespace=$3 output ps_script line wmic_cmd
+
+    if [[ $namespace ]]; then
+        ps_script="Get-CimInstance -Namespace '$namespace' -ClassName '$class_name' -ErrorAction SilentlyContinue | ForEach-Object { \$_.${property} }"
+    else
+        ps_script="Get-CimInstance -ClassName '$class_name' -ErrorAction SilentlyContinue | ForEach-Object { \$_.${property} }"
+    fi
+
+    output="$(win_ps "$ps_script" | tr -d '\r')"
+
+    if [[ $output ]]; then
+        printf '%s\n' "$output" | awk 'NF'
+        return
+    fi
+
+    for wmic_cmd in wmic wmic.exe; do
+        type -p "$wmic_cmd" >/dev/null && break
+        wmic_cmd=
+    done
+
+    [[ $wmic_cmd ]] || return
+
+    if [[ $namespace ]]; then
+        output="$("$wmic_cmd" /NameSpace:"$namespace" Path "$class_name" get "$property" 2>/dev/null)"
+    else
+        output="$("$wmic_cmd" path "$class_name" get "$property" 2>/dev/null)"
+    fi
+
+    output=${output//$'\r'/}
+
+    while IFS= read -r line; do
+        line=$(trim "$line")
+
+        [[ -z $line || $line == "$property" ]] && continue
+        printf '%s\n' "$line"
+    done <<< "$output"
 }
 
 strip_sequences() {

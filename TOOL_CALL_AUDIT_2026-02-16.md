@@ -147,12 +147,12 @@ This preserves backward compatibility while improving correctness on DNF5-based 
 
 ### 1) `wmic` usage on Windows (deprecation risk)
 
-**Status:** Not changed yet (recommendation).
+**Status:** Implemented in this pass.
 
-- Multiple Windows code paths still call `wmic`/`wmic.exe` for OS, model, kernel, battery, GPU and resolution queries.
-- WMIC has been deprecated by Microsoft and may be absent/disabled on newer Windows installs.
+- Added a centralized helper in `neofetch` that prefers PowerShell CIM (`Get-CimInstance`) and falls back to `wmic`/`wmic.exe` when needed.
+- Migrated Windows call sites in distro/model/kernel/GPU/resolution/battery and Blackbox path detection to use this helper.
 
-**Recommended enhancement:** introduce a centralized Windows query helper that prefers PowerShell CIM (`Get-CimInstance`) and falls back to `wmic` when available.
+**Result:** On modern Windows, Neofetch now uses CIM by default while retaining compatibility for older environments where only WMIC is available.
 
 ### 2) `gconftool-2` legacy path
 
@@ -173,3 +173,31 @@ This preserves backward compatibility while improving correctness on DNF5-based 
 - Add a Windows CIM abstraction layer (single helper function) to reduce duplicated `wmic` handling.
 - Expand Wayland resolution support beyond wlroots (`wlr-randr`) to compositor-specific tools where available.
 - Add a CI smoke test mode that stubs external tools to validate fallback ordering without platform-specific runtime dependencies.
+
+---
+
+## Fourth-pass update: broader Wayland resolution support
+
+### What changed
+
+**File:** `neofetch`
+
+- Extended `get_resolution` Wayland probing with additional compositor-specific fallbacks:
+  - `swaymsg -t get_outputs`
+  - `hyprctl monitors`
+- Preserved existing priority and behavior:
+  1. `wlr-randr` (existing)
+  2. `swaymsg` (new)
+  3. `hyprctl` (new)
+  4. existing X11 and DRM fallback chain
+
+### Why
+
+- Some Wayland environments do not provide `wlr-randr` by default.
+- Adding native compositor probes improves detection fidelity without introducing mandatory new dependencies.
+
+### Compatibility behavior
+
+- `refresh_rate=on`: outputs `WxH @ <Hz>`.
+- `refresh_rate=off`: outputs `WxH`.
+- If none of these tools are present, script keeps existing fallback behavior unchanged.
