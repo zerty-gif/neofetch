@@ -2537,6 +2537,14 @@ get_cpu() {
 get_gpu() {
     case $os in
         "Linux")
+            if ! type -p lspci >/dev/null; then
+                if type -p glxinfo >/dev/null; then
+                    gpu="$(glxinfo -B 2>/dev/null | awk -F': ' '/OpenGL renderer string/ {print $2; exit}')"
+                    [[ $gpu ]] && prin "${subtitle:+${subtitle}${gpu_name}}" "$gpu"
+                fi
+                return
+            fi
+
             # Read GPUs into array.
             gpu_cmd="$(lspci -mm |
                        awk -F '\"|\" \"|\\(' \
@@ -3114,7 +3122,25 @@ get_resolution() {
         ;;
 
         *)
-            if type -p xrandr >/dev/null && [[ $DISPLAY && -z $WAYLAND_DISPLAY ]]; then
+            if type -p wlr-randr >/dev/null && [[ -n $WAYLAND_DISPLAY ]]; then
+                case $refresh_rate in
+                    "on")
+                        resolution="$(wlr-randr 2>/dev/null | \
+                                      awk '/ px, .*Hz \(.*current.*\)/ {
+                                          mode=$1; hz=$3;
+                                          gsub(/,/, "", mode);
+                                          gsub(/,/, "", hz);
+                                          printf mode " @ " hz "Hz, "
+                                      }')"
+                    ;;
+
+                    "off")
+                        resolution="$(wlr-randr 2>/dev/null | \
+                                      awk '/ px, .*Hz \(.*current.*\)/ {printf $1 ", "}')"
+                    ;;
+                esac
+
+            elif type -p xrandr >/dev/null && [[ $DISPLAY && -z $WAYLAND_DISPLAY ]]; then
                 case $refresh_rate in
                     "on")
                         resolution="$(xrandr --nograb --current |\

@@ -75,3 +75,40 @@ No change required in current Proxmox distro detection logic:
 ## Follow-up options
 
 If needed, we can do a second-pass audit for additional command paths (`xrandr`, `xdpyinfo`, package managers, GPU probing utilities) and add matrix-style compatibility notes by distro family.
+
+---
+
+## Second-pass audit (display, GPU, packages)
+
+### Display probing (`get_resolution`)
+
+**Finding:** X11 probing (`xrandr`, `xwininfo`, `xdpyinfo`) is solid, but Wayland-only sessions can report less accurately when relying only on `/sys/class/drm` fallback.
+
+**Change made:**
+
+- Added a Wayland-first probe using `wlr-randr` when `WAYLAND_DISPLAY` is set.
+- Parses only modes marked as current.
+- Preserves existing `refresh_rate` behavior:
+  - `on`: emits `<WxH> @ <Hz>`
+  - `off`: emits `<WxH>`
+
+**Impact:** Better resolution fidelity on wlroots-based compositors without affecting existing X11 logic.
+
+### GPU probing (`get_gpu` on Linux)
+
+**Finding:** Linux GPU path assumed `lspci` availability; on minimal installations without `pciutils`, GPU output can be empty.
+
+**Change made:**
+
+- Added guard for missing `lspci`.
+- Added fallback to `glxinfo -B` renderer string when available.
+
+**Impact:** Graceful degraded behavior on minimal Linux installs while keeping existing `lspci` parsing path unchanged.
+
+### Package counting (`get_packages`)
+
+**Finding:** Existing DNF optimization uses `/var/cache/dnf/packages.db` (DNF4-specific). DNF5 ecosystems may not provide this path, but script already falls back cleanly to `rpm -qa`.
+
+**Change made:** No code change required in this pass.
+
+**Why no change now:** Current fallback remains correct and stable across RPM-based systems; introducing DNF5-specific fast path would require distro/version-specific handling beyond this focused maintenance patch.
